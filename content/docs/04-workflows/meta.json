@@ -1,0 +1,6 @@
+{
+  "title": "Workflows",
+  "description": "AI 워크플로 설계 레시피",
+  "icon": "Workflow",
+  "pages": ["index", "vibe-coding-pipeline", "design-automation", "debug-loop"]
+}

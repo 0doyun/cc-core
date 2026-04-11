@@ -1,0 +1,6 @@
+{
+  "title": "Slash Commands",
+  "description": "CC + OMC 커맨드 레퍼런스",
+  "icon": "SquareTerminal",
+  "pages": ["index", "claude-code-catalog", "omc-catalog", "custom-commands"]
+}

@@ -1,0 +1,16 @@
+{
+  "title": "CC BASE",
+  "pages": [
+    "index",
+    "---Guides---",
+    "00-start",
+    "01-docs-summary",
+    "02-slash-commands",
+    "03-session-context",
+    "04-workflows",
+    "05-git-versioning",
+    "06-ecosystem",
+    "07-tips-tricks",
+    "08-whats-new"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "title": "Tips & Tricks",
+  "description": "숨은 팁 모음",
+  "icon": "Bookmark",
+  "pages": ["index", "claude-md-patterns", "hook-recipes", "prompt-shortcuts"]
+}

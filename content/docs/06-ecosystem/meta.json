@@ -1,0 +1,6 @@
+{
+  "title": "Ecosystem",
+  "description": "대안·프록시·MCP",
+  "icon": "Boxes",
+  "pages": ["index", "vibeproxy-and-alternatives", "cli-landscape", "mcp-servers-catalog"]
+}

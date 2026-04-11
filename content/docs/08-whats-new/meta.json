@@ -1,0 +1,6 @@
+{
+  "title": "What's New",
+  "description": "최근 업데이트 트래킹",
+  "icon": "Rss",
+  "pages": ["index", "changelog-2026-04", "emerging-tools"]
+}

@@ -1,0 +1,6 @@
+{
+  "title": "Start",
+  "description": "하네스 엔지니어링 인트로",
+  "icon": "Compass",
+  "pages": ["index", "harness-engineering"]
+}

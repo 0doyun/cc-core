@@ -1,0 +1,6 @@
+{
+  "title": "Session & Context",
+  "description": "세션·컨텍스트 관리",
+  "icon": "Layers",
+  "pages": ["index", "compact-and-memory", "context-window-survival", "session-resume-patterns"]
+}
