@@ -30,3 +30,7 @@ next-env.d.ts
 
 # local-only AI context (not committed until finalized)
 CLAUDE.md
+
+# local content drafting workspace (source of truth for drafts; published
+# versions go into content/docs/ after review)
+/docs/
