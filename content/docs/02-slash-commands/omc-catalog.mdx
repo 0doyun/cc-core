@@ -9,11 +9,11 @@ description: oh-my-claudecode (OMC) v4.11.x 가 얹어주는 슬래시 커맨드
 
 ## 0. OMC 슬래시 커맨드의 정체
 
-OMC 의 스킬은 `/oh-my-claudecode:<name>` 형태로 노출됩니다. 예: `/oh-my-claudecode:autopilot`. 다만 사용자가 매번 이 긴 이름을 치지 않도록 OMC 는 **매직 키워드 라우팅**이라는 두 번째 층을 제공해요. "ralph 이 버그 뿌리뽑아줘" 같은 자연어 안에 키워드만 있으면 UserPromptSubmit 훅이 자동으로 해당 스킬을 활성화합니다.
+OMC 의 스킬은 `/<name>` 형태로 노출됩니다. 예: `/autopilot`. 다만 사용자가 매번 이 긴 이름을 치지 않도록 OMC 는 **매직 키워드 라우팅**이라는 두 번째 층을 제공해요. "ralph 이 버그 뿌리뽑아줘" 같은 자연어 안에 키워드만 있으면 UserPromptSubmit 훅이 자동으로 해당 스킬을 활성화합니다.
 
 즉 OMC 쪽엔 레이어가 두 개입니다.
 
-1. **명시적 슬래시 커맨드** (`/oh-my-claudecode:autopilot`)
+1. **명시적 슬래시 커맨드** (`/autopilot`)
 2. **매직 키워드 라우팅** (자연어 안의 트리거 단어)
 
 이 글에선 둘 다 정리합니다. 이 글 기준 버전은 **OMC v4.11.x (2026-04)**.
@@ -42,8 +42,8 @@ flowchart TB
         SL["ai-slop-cleaner<br/>슬롭 정리"]
         CC["cancel<br/>통합 종료"]
     end
-    AP -.내부 호출.-> RA
-    RA -.Step 7.5.-> SL
+    AP -."내부 호출".-> RA
+    RA -."deslop".-> SL
 ```
 
 - **파이프라인 축** — 아이디어를 코드로 변환하는 표준 흐름
@@ -52,7 +52,7 @@ flowchart TB
 
 ## 2. 3단계 메인 파이프라인
 
-### 2-1. `/oh-my-claudecode:deep-interview`
+### 2-1. `/deep-interview`
 
 - **역할**: 소크라테스식 Q&A 로 아이디어의 **모호성 점수를 20% 이하**로 떨어뜨린 뒤 spec 파일을 출력합니다.
 - **출력**: `.omc/specs/deep-interview-{slug}.md`
@@ -60,7 +60,7 @@ flowchart TB
 - **쓰지 말 때**: 구체적인 요구사항이 이미 있을 때. 그 경우 바로 `/ralplan` 이나 `/autopilot` 으로.
 - **매직 키워드**: `deep interview`, `ouroboros`.
 
-### 2-2. `/oh-my-claudecode:ralplan`
+### 2-2. `/ralplan`
 
 - **역할**: 내부적으로 `omc-plan --consensus` 를 호출하는 합의 플래닝 스킬. Planner → Architect → Critic 세 관점이 합의에 도달할 때까지 최대 5회 반복하며, RALPLAN-DR 구조화된 심의 게이팅을 추가로 제공합니다.
 - **출력**: `.omc/plans/ralplan-*.md` 또는 `.omc/plans/consensus-*.md`
@@ -70,7 +70,7 @@ flowchart TB
   - `--architect codex` / `--critic codex` — Architect·Critic 패스를 Codex CLI 로 대체
 - **합의 루프**: Critic 이 `APPROVE` 를 반환하면 종료. 5회까지 반복해도 합의 안 되면 보고.
 
-### 2-3. `/oh-my-claudecode:autopilot`
+### 2-3. `/autopilot`
 
 - **역할**: 가장 상위의 완전 자율 실행 파이프라인. 요구분석 → 설계 → 병렬 구현 → QA → 멀티관점 검증.
 - **Phase 자동 단축**:
@@ -87,7 +87,7 @@ autopilot 이 단독 실행되면 Phase 0 (Analyst 요구분석) + Phase 1 (Arch
 
 파이프라인이 "무엇을 할지" 결정한다면, 이 층은 "어떻게 실행할지" 입니다.
 
-### 3-1. `/oh-my-claudecode:ralph`
+### 3-1. `/ralph`
 
 - **역할**: PRD 기반 영속 루프. `prd.json` 의 모든 user story 가 `passes: true` 가 될 때까지 반복하고, architect 또는 critic 의 검증을 필수로 통과해야 종료.
 - **플래그**:
@@ -97,7 +97,7 @@ autopilot 이 단독 실행되면 Phase 0 (Analyst 요구분석) + Phase 1 (Arch
 - **내부 흐름**: PRD 생성·정제 → story 별 구현 → 검증 → reviewer 승인 → **Step 7.5 ai-slop-cleaner** → Step 7.6 회귀 재검증 → `cancel`.
 - **매직 키워드**: `ralph`, `don't stop`, `must complete`, `until done`.
 
-### 3-2. `/oh-my-claudecode:ultrawork`
+### 3-2. `/ultrawork`
 
 - **역할**: 병렬 실행 엔진. 독립 태스크를 동시에 여러 에이전트에게 발사. **영속성·검증 루프는 없음.**
 - **관계**: ralph 와 autopilot 내부에서 실제 병렬 실행을 담당하는 하위 레이어.
@@ -105,7 +105,7 @@ autopilot 이 단독 실행되면 Phase 0 (Analyst 요구분석) + Phase 1 (Arch
 - **쓰지 말 때**: 완료 보장이 필요하면 ralph. 단일 순차 작업이면 executor 직접 위임.
 - **매직 키워드**: `ultrawork`, `ulw`, `uw`.
 
-### 3-3. `/oh-my-claudecode:team`
+### 3-3. `/team`
 
 - **역할**: Claude Code 네이티브 팀 API 기반 N 개 에이전트 협업. v4.1.7 부터 기존 `/swarm` 을 대체.
 - **형식**: `/team 3:executor "task"`, `/team 2:codex 4:designer "task"`, `/team ralph "task"` (ralph 루프를 팀으로 래핑).
@@ -114,30 +114,30 @@ autopilot 이 단독 실행되면 Phase 0 (Analyst 요구분석) + Phase 1 (Arch
 
 ## 4. 진단 · 품질 · 종료
 
-### `/oh-my-claudecode:trace`
+### `/trace`
 
 - **역할**: 증거 기반 원인 추적. 경쟁 가설을 병렬 조사한 뒤 **Observation / Hypotheses / Evidence For / Evidence Against / Best Explanation / Critical Unknown / Discriminating Probe** 7 항목을 유지.
 - **쓸 때**: 런타임 버그, 성능 이상, 아키텍처 사후분석, "이 출력이 왜 나왔는지 역추적".
 - **쓰지 말 때**: 단순 코드 수정, 제네릭 디버거 요약.
 
-### `/oh-my-claudecode:deep-dive`
+### `/deep-dive`
 
 - trace 와 deep-interview 를 2 단계로 엮어줍니다. trace 결과를 3-point injection 으로 interview 에 전달해 "증상 → 원인 → 요구사항" 흐름을 자동화.
 - 출력: `.omc/specs/deep-dive-{slug}.md` → 이후 ralplan → autopilot 파이프라인으로 이어집니다.
 
-### `/oh-my-claudecode:ultraqa`
+### `/ultraqa`
 
 - **역할**: QA 자동 사이클링. 테스트·빌드·린트·타입체크가 전부 통과할 때까지 최대 5 회 반복.
 - **플래그**: `--tests`, `--build`, `--lint`, `--typecheck`, `--custom "패턴"`, `--interactive`.
 - **흐름**: QA 실행 → 실패 진단 (architect) → executor 수정 → 다시 QA.
 
-### `/oh-my-claudecode:ai-slop-cleaner`
+### `/ai-slop-cleaner`
 
 - **역할**: AI 가 남긴 중복 로직·죽은 코드·과도한 추상화를 "deletion-first" 로 정리.
 - **트리거**: `deslop`, `anti-slop` 키워드 또는 ralph Step 7.5 에서 자동 호출.
 - **플래그**: `--review` — 작성자/검토자 분리를 위한 reviewer-only 패스.
 
-### `/oh-my-claudecode:cancel`
+### `/cancel`
 
 - **역할**: 모든 활성 OMC 모드의 통합 종료 및 state 정리.
 - **플래그**: `--force` / `--all` — 현재 세션뿐 아니라 모든 세션과 레거시 파일 전체 삭제.
@@ -150,21 +150,21 @@ autopilot 이 단독 실행되면 Phase 0 (Analyst 요구분석) + Phase 1 (Arch
 
 | 커맨드 | 역할 |
 |---|---|
-| `/oh-my-claudecode:ccg` | Claude + Codex + Gemini 3 모델 병렬 어드바이저. 멀티 관점 크로스 검증에 유용 |
-| `/oh-my-claudecode:ask` | 특정 어드바이저에 단발 프롬프트 전송 후 아티팩트 저장 |
-| `/oh-my-claudecode:sciomc` | 병렬 scientist 리서치 오케스트레이터. `AUTO: <goal>` 로 자율 모드 |
-| `/oh-my-claudecode:self-improve` | 자율 코드 개선 루프 (v4.10.0 추가) |
-| `/oh-my-claudecode:deepinit` | 코드베이스 계층적 AGENTS.md 자동 문서화 |
+| `/ccg` | Claude + Codex + Gemini 3 모델 병렬 어드바이저. 멀티 관점 크로스 검증에 유용 |
+| `/ask` | 특정 어드바이저에 단발 프롬프트 전송 후 아티팩트 저장 |
+| `/sciomc` | 병렬 scientist 리서치 오케스트레이터. `AUTO: <goal>` 로 자율 모드 |
+| `/self-improve` | 자율 코드 개선 루프 (v4.10.0 추가) |
+| `/deepinit` | 코드베이스 계층적 AGENTS.md 자동 문서화 |
 
 ### 한 번 세팅하고 잊는 것
 
-`/oh-my-claudecode:omc-setup` (설치·갱신), `/omc-doctor` (진단), `/skill` (스킬 관리), `/configure-notifications` (알림 통합), `/project-session-manager` (워크트리 관리) 등은 초기 세팅 때 한 번 쓰고 이후엔 거의 안 봅니다.
+`/omc-setup` (설치·갱신), `/omc-doctor` (진단), `/skill` (스킬 관리), `/configure-notifications` (알림 통합), `/project-session-manager` (워크트리 관리) 등은 초기 세팅 때 한 번 쓰고 이후엔 거의 안 봅니다.
 
 ## 6. 매직 키워드 라우팅
 
 슬래시 커맨드를 직접 치지 않아도, 자연어 안에 키워드만 있으면 OMC 의 `UserPromptSubmit` 훅이 해당 스킬을 자동 활성화합니다. 위 섹션 2~4 에서 각 커맨드별로 매직 키워드를 이미 적어뒀으니, 여기선 원리만 짚고 넘어갑니다.
 
-**작동 방식**: 훅의 `keyword-detector.mjs` 가 입력을 스캔 → 키워드 감지 → `<system-reminder>` 태그로 스킬 호출 지시 주입. 예를 들어 "ralph 이 버그 뿌리뽑아줘" 라고 치면 `/oh-my-claudecode:ralph` 가 자동 발동돼요.
+**작동 방식**: 훅의 `keyword-detector.mjs` 가 입력을 스캔 → 키워드 감지 → `<system-reminder>` 태그로 스킬 호출 지시 주입. 예를 들어 "ralph 이 버그 뿌리뽑아줘" 라고 치면 `/ralph` 가 자동 발동돼요.
 
 **한국어 사용자 참고**: v4.11.1 에서 한국어 false positive 버그가 수정됐습니다. 이전에는 `설명서`, `랄프로렌` 같은 단어가 매직 키워드로 잘못 인식돼 ralph 등이 의도치 않게 발동되는 경우가 있었어요. 최신 버전으로 업데이트하면 해결됩니다.
 
