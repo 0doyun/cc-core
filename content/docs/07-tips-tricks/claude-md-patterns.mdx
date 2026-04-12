@@ -1,0 +1,156 @@
+---
+title: 실전 CLAUDE.md 패턴
+description: CLAUDE.md 를 "규칙 목록"이 아니라 "복리로 작동하는 하네스 설정 파일"로 다루는 파워유저 패턴. 경로별 규칙 분리, import, 강조 언어, 구조화 전략까지.
+---
+
+<Callout type="info">
+CLAUDE.md 는 한 번 잘 적으면 **모든 세션에 복리로** 작용합니다. 문제는 "잘 적는 법"을 공식 문서가 충분히 안 알려준다는 거예요. 여기서는 커뮤니티에서 검증된 구조화 패턴만 모았습니다.
+</Callout>
+
+## 1. Compound Engineering — 복리의 원리
+
+[Kieran Klaassen](https://every.to/guides/compound-engineering) 이 이름 붙인 **compound engineering** 의 핵심 루프:
+
+> "Each unit of engineering work should make subsequent units easier — not harder."
+> — Kieran Klaassen (with Claude), Every.to (2026-01)
+
+Claude Code 공식 문서도 같은 맥락입니다:
+
+> "The file compounds in value over time."
+> — [Claude Code Best Practices](https://code.claude.com/docs/en/best-practices)
+
+실전에서 이 루프는 이렇게 돌아갑니다:
+
+1. Claude 가 실수한다 (예: 테스트 없이 커밋)
+2. CLAUDE.md 에 규칙 추가: `MUST run tests before committing`
+3. 다음 세션부터 같은 실수가 **구조적으로** 불가능해진다
+
+[하네스 엔지니어링](/docs/00-start/harness-engineering) 에서 인용한 Hashimoto 의 원칙 — "실수가 재발 불가능하도록 환경을 바꿔라" — 의 가장 가벼운 실천이 바로 CLAUDE.md 한 줄 추가예요.
+
+## 2. 강조 언어 — MUST 는 되고, 200줄은 안 된다
+
+공식 문서는 `IMPORTANT` 나 `YOU MUST` 같은 [강조 표현이 준수율을 높인다](https://code.claude.com/docs/en/best-practices)고 안내합니다. 하지만 커뮤니티 검증 결과는 더 복잡해요.
+
+[Shane Ho 의 분석](https://dev.to/docat0209/5-patterns-that-make-claude-code-actually-follow-your-rules-44dh) (2026-03):
+
+- 부정형 규칙 10개를 긍정형으로 바꾸니 위반이 **절반으로** 줄었다
+- 가장 자주 위반되는 규칙을 파일 **맨 위와 맨 아래**에 놓으면 준수율이 올라간다 (primacy/recency bias)
+
+공식 문서도 [200줄 이하](https://code.claude.com/docs/en/memory)를 권장합니다. 규칙이 많아질수록 각 규칙의 준수율이 균등하게 떨어지기 때문이에요.
+
+```markdown
+# CLAUDE.md — 좋은 예 (30줄 이내, 핵심만)
+
+## Build
+MUST run `pnpm test` before committing.
+MUST use Conventional Commits format.
+
+## Style
+Prefer named exports over default exports.
+TypeScript strict mode is required.
+
+## Context
+See @docs/architecture.md for system design.
+See @docs/testing.md for test conventions.
+```
+
+<Callout type="warn" title="규칙 수와 준수율의 반비례">
+규칙을 두 배로 늘리면 준수율은 선형으로 떨어집니다. 에이전트 시나리오에서 30% 미만의 규칙만 완벽히 지켜진다는 [커뮤니티 분석](https://dev.to/minatoplanb/i-wrote-200-lines-of-rules-for-claude-code-it-ignored-them-all-4639)이 있어요. "규칙을 더 추가"하기 전에 기존 규칙을 줄이는 게 먼저입니다.
+</Callout>
+
+## 3. 경로별 규칙 분리 — `.claude/rules/`
+
+프로젝트 전체에 적용할 필요 없는 규칙은 [`.claude/rules/`](https://code.claude.com/docs/en/memory) 디렉토리에 분리하세요:
+
+```markdown
+---
+paths:
+  - "src/api/**/*.ts"
+---
+# API Rules
+MUST version all endpoints (/v1/, /v2/).
+MUST include input validation with zod.
+```
+
+이 파일은 Claude 가 `src/api/` 하위 파일을 읽는 순간에만 로드됩니다. 평소에는 컨텍스트를 전혀 차지하지 않아요.
+
+`paths:` 없는 규칙 파일은 무조건 로드되니까, **범용 규칙은 루트 CLAUDE.md**, **도메인 규칙은 `.claude/rules/`** 로 분리하는 게 정석입니다.
+
+## 4. @ 경로 참조 — 파일 쪼개기
+
+CLAUDE.md 가 200줄을 넘기기 시작하면 [`@ 경로 참조` 문법](https://code.claude.com/docs/en/memory)으로 쪼개세요:
+
+```markdown
+# CLAUDE.md (루트 — 30줄 이내)
+
+@docs/architecture.md
+@docs/testing-conventions.md
+@.claude/style-guide.md
+
+## 이 프로젝트만의 규칙
+MUST use Korean for all commit messages.
+```
+
+- 상대 경로, 절대 경로, `~` 경로 모두 지원
+- 재귀 import 는 **최대 5단계**까지
+- 처음 만나는 import 는 승인 다이얼로그가 뜸
+
+[HumanLayer 블로그](https://www.humanlayer.dev/blog/writing-a-good-claude-md)는 이걸 **progressive disclosure** 패턴이라고 부릅니다. 루트 파일에는 포인터만 두고, 상세 절차는 별도 파일에 보관하는 거예요.
+
+## 5. 하위 디렉토리 CLAUDE.md 의 lazy-loading
+
+루트와 상위 디렉토리의 CLAUDE.md 는 세션 시작 시 즉시 로드되지만, **하위 디렉토리의 CLAUDE.md 는 해당 디렉토리 파일을 읽을 때만** [lazy-load](https://code.claude.com/docs/en/memory) 됩니다.
+
+이게 중요한 이유:
+
+- `packages/billing/CLAUDE.md` 에 billing 전용 규칙을 넣으면, billing 작업할 때만 로드
+- `/compact` 이후에는 하위 CLAUDE.md 가 다시 **자동으로 재주입되지 않음** — 다음에 해당 디렉토리 파일을 읽을 때 다시 로드
+
+<Callout type="warn" title="InstructionsLoaded Hook">
+어떤 규칙 파일이 언제 로드되는지 디버깅하려면 `InstructionsLoaded` Hook 을 쓰세요. 이 Hook 은 규칙 파일이 로드될 때마다 파일 경로와 로드 이유를 알려줍니다. 공식 문서에 있지만 대부분 존재를 모르는 기능이에요.
+</Callout>
+
+## 6. AGENTS.md 와의 공존
+
+[AGENTS.md](https://code.claude.com/docs/en/memory) 는 Codex CLI · Gemini CLI 등 여러 에이전트 도구가 사용하는 사실상의(de facto) 관례 파일입니다. Claude Code 는 CLAUDE.md 를 읽고, AGENTS.md 는 직접 읽지 않아요.
+
+두 파일이 공존해야 하면 공식 권장 패턴은 **import**:
+
+```markdown
+# CLAUDE.md
+@AGENTS.md
+
+## Claude Code 전용
+Use plan mode for changes under src/billing/.
+```
+
+이렇게 하면 다른 에이전트는 AGENTS.md 를, Claude Code 는 CLAUDE.md + AGENTS.md 를 함께 읽습니다.
+
+## 7. HTML 주석으로 메모 남기기
+
+```markdown
+<!-- 이 규칙은 2026-03 린트 사고 이후 추가. 6개월 뒤 재검토 -->
+MUST run eslint --fix before committing JS files.
+```
+
+블록 수준 HTML 주석은 Claude 컨텍스트에 주입되기 전에 [자동으로 제거](https://code.claude.com/docs/en/memory)됩니다. 사람 유지보수용 메모를 넣되, 토큰은 아끼는 거예요.
+
+## 다음에 읽을 글
+
+- [숨은 팁 모음](/docs/07-tips-tricks/hidden-gems) — CLAUDE.md 외의 환경변수, CLI 플래그, Hook 팁
+- [하네스 엔지니어링이란?](/docs/00-start/harness-engineering) — CLAUDE.md 가 harness 에서 차지하는 위치
+
+## 참고 자료
+
+- [Claude Code — Memory](https://code.claude.com/docs/en/memory) — CLAUDE.md, rules, @import, lazy-loading 공식 레퍼런스
+- [Claude Code — Best Practices](https://code.claude.com/docs/en/best-practices) — 구조화, 강조 언어, 안티패턴
+- [Compound Engineering](https://every.to/guides/compound-engineering) — Kieran Klaassen, 2026-01
+- [5 Patterns That Make Claude Code Follow Your Rules](https://dev.to/docat0209/5-patterns-that-make-claude-code-actually-follow-your-rules-44dh) — Shane Ho, 2026-03
+- [Writing a Good CLAUDE.md](https://www.humanlayer.dev/blog/writing-a-good-claude-md) — HumanLayer, 2025-11
+- [CLAUDE.md Formatting Rules](https://dev.to/cleverhoods/-claudemd-best-practices-7-formatting-rules-for-the-machine-3d3l) — Gabor Meszaros, 2026-03
+
+---
+
+<Callout type="info">
+**Last verified: 2026-04-13** — Claude Code v2.1.101 기준.
+</Callout>
