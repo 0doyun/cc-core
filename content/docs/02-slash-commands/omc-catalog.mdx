@@ -141,48 +141,30 @@ autopilot 이 단독 실행되면 Phase 0 (Analyst 요구분석) + Phase 1 (Arch
 
 - **역할**: 모든 활성 OMC 모드의 통합 종료 및 state 정리.
 - **플래그**: `--force` / `--all` — 현재 세션뿐 아니라 모든 세션과 레거시 파일 전체 삭제.
-- **종료 순서** (의존성 순): autopilot → ralph → ultrawork → ultraqa → swarm → ultrapilot → pipeline → team → omc-teams → plan consensus → self-improve.
-- **재개 가능**: autopilot 만 state 를 보존해서 재실행 시 중단 지점부터 이어갑니다. 나머지는 삭제.
+- **재개 가능**: autopilot 만 state 를 보존해서 재실행 시 중단 지점부터 이어갑니다. 나머지 모드는 state 삭제.
 - **매직 키워드**: `cancelomc`, `stopomc`.
 
-## 5. 어드바이저 · 세팅 · 기타
+## 5. 어드바이저 · 기타
+
+### 실제로 자주 쓰는 것
 
 | 커맨드 | 역할 |
 |---|---|
-| `/oh-my-claudecode:ccg` | Claude + Codex + Gemini 3 모델 병렬 어드바이저. `omc ask codex`, `omc ask gemini` 실행 후 Claude 가 종합. `.omc/artifacts/ask/` 에 저장 |
-| `/oh-my-claudecode:ask` | 특정 어드바이저(`claude`, `codex`, `gemini`) 에 단발 프롬프트 전송 후 아티팩트 저장 |
-| `/oh-my-claudecode:sciomc` | 병렬 scientist 에이전트 리서치 오케스트레이터. `AUTO: <goal>` 로 완전 자율 모드 |
-| `/oh-my-claudecode:omc-setup` | 설치·갱신·수복 원스톱 마법사. `--local` / `--global` / `--force` |
-| `/oh-my-claudecode:omc-doctor` | 설치 문제 진단·수복 |
-| `/oh-my-claudecode:deepinit` | 코드베이스 계층적 AGENTS.md 문서화 |
-| `/oh-my-claudecode:learner` | 현재 대화에서 재사용 가능한 스킬 추출 |
-| `/oh-my-claudecode:skill` | 로컬 스킬 목록·추가·삭제·편집 |
+| `/oh-my-claudecode:ccg` | Claude + Codex + Gemini 3 모델 병렬 어드바이저. 멀티 관점 크로스 검증에 유용 |
+| `/oh-my-claudecode:ask` | 특정 어드바이저에 단발 프롬프트 전송 후 아티팩트 저장 |
+| `/oh-my-claudecode:sciomc` | 병렬 scientist 리서치 오케스트레이터. `AUTO: <goal>` 로 자율 모드 |
 | `/oh-my-claudecode:self-improve` | 자율 코드 개선 루프 (v4.10.0 추가) |
-| `/oh-my-claudecode:visual-verdict` | 스크린샷-레퍼런스 비교 시각 QA 판정 |
-| `/oh-my-claudecode:configure-notifications` | Telegram·Discord·Slack 알림 통합 설정 |
-| `/oh-my-claudecode:project-session-manager` | git worktree + tmux 격리 개발 환경 관리 |
+| `/oh-my-claudecode:deepinit` | 코드베이스 계층적 AGENTS.md 자동 문서화 |
 
-## 6. 매직 키워드 라우팅 — 자연어만으로 스킬 활성화
+### 한 번 세팅하고 잊는 것
 
-OMC 의 `UserPromptSubmit` 훅은 사용자 입력 문장을 스캔해서 키워드가 감지되면 `<system-reminder>` 태그로 해당 스킬 호출을 지시합니다. 슬래시 커맨드를 직접 치지 않아도 됩니다.
+`/oh-my-claudecode:omc-setup` (설치·갱신), `/omc-doctor` (진단), `/skill` (스킬 관리), `/configure-notifications` (알림 통합), `/project-session-manager` (워크트리 관리) 등은 초기 세팅 때 한 번 쓰고 이후엔 거의 안 봅니다.
 
-| 키워드 / 문구 | 활성화되는 스킬 |
-|---|---|
-| `ultrawork`, `ulw`, `uw` | ultrawork |
-| `autopilot`, `build me`, `I want a`, `handle it all`, `end to end`, `e2e this` | autopilot |
-| `ralph`, `don't stop`, `must complete`, `until done` | ralph |
-| `ralplan` | ralplan (= omc-plan --consensus) |
-| `deep interview`, `ouroboros` | deep-interview |
-| `deep dive`, `investigate deeply`, `trace and interview` | deep-dive |
-| `deep dive`, `investigate deeply`, `trace and interview` | deep-dive |
-| `deslop`, `anti-slop` | ai-slop-cleaner |
-| `ccg`, `claude-codex-gemini` | ccg |
-| `deepsearch`, `search the codebase` | 코드베이스 집중 검색 모드 |
-| `deepanalyze`, `deep-analyze` | 심층 분석 모드 |
-| `ultrathink`, `think hard`, `think deeply` | 심층 추론 모드 |
-| `tdd`, `test first`, `red green` | TDD 워크플로 |
-| `security review`, `review security` | 보안 중심 리뷰 모드 |
-| `cancelomc`, `stopomc` | cancel |
+## 6. 매직 키워드 라우팅
+
+슬래시 커맨드를 직접 치지 않아도, 자연어 안에 키워드만 있으면 OMC 의 `UserPromptSubmit` 훅이 해당 스킬을 자동 활성화합니다. 위 섹션 2~4 에서 각 커맨드별로 매직 키워드를 이미 적어뒀으니, 여기선 원리만 짚고 넘어갑니다.
+
+**작동 방식**: 훅의 `keyword-detector.mjs` 가 입력을 스캔 → 키워드 감지 → `<system-reminder>` 태그로 스킬 호출 지시 주입. 예를 들어 "ralph 이 버그 뿌리뽑아줘" 라고 치면 `/oh-my-claudecode:ralph` 가 자동 발동돼요.
 
 **한국어 사용자 참고**: v4.11.1 에서 한국어 false positive 버그가 수정됐습니다. 이전에는 `설명서`, `랄프로렌` 같은 단어가 매직 키워드로 잘못 인식돼 ralph 등이 의도치 않게 발동되는 경우가 있었어요. 최신 버전으로 업데이트하면 해결됩니다.
 

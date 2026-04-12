@@ -81,18 +81,11 @@ Claude Code 의 컨텍스트 관리는 크게 세 층입니다.
 ```markdown
 # 프로젝트 루트 CLAUDE.md
 프로젝트 개요: @README.md
-가능한 명령어: @package.json
-
-## Git 워크플로
-@docs/git-instructions.md
-
-## 워크트리 간 공유되는 개인 설정
-@~/.claude/my-project-preferences.md
+Git 워크플로: @docs/git-instructions.md
+개인 설정: @~/.claude/my-project-preferences.md
 ```
 
-- 상대 경로는 **import 하는 파일 기준**(작업 디렉토리 기준 아님)
-- 재귀 최대 **5 단계**
-- 외부 경로(`~` 이하 등) import 는 첫 사용 시 승인 다이얼로그
+상대 경로는 import 하는 파일 기준이고, 재귀는 최대 5 단계입니다.
 
 ### 2-3. `/memory` 커맨드
 
@@ -132,17 +125,7 @@ Claude Code 의 컨텍스트 관리는 크게 세 층입니다.
 
 ### 3-1. `/context` 로 지금 얼마나 차 있는지부터
 
-`/context` 는 색상 그리드로 현재 컨텍스트 사용률과 각 카테고리 비중을 보여줍니다. [공식 Context Window 문서](https://code.claude.com/docs/en/context-window) 기준 세션 시작 시 자동 로드되는 대표 항목들의 토큰 비용은:
-
-- 시스템 프롬프트: ~4,200 토큰
-- Auto memory (`MEMORY.md`): ~680 토큰
-- 환경 정보: ~280 토큰
-- MCP 툴 (지연 로드): ~120 토큰
-- 스킬 설명 목록: ~450 토큰
-- `~/.claude/CLAUDE.md`: ~320 토큰
-- 프로젝트 `CLAUDE.md`: ~1,800 토큰
-
-즉 말 한 번 하기도 전에 이미 수천 토큰이 먹혀 있어요. 프로젝트 `CLAUDE.md` 가 2,000 토큰 넘어가면 내부 `@import` 가 비대해졌을 가능성이 높습니다.
+`/context` 는 색상 그리드로 현재 컨텍스트 사용률과 각 카테고리 비중을 보여줍니다. 말 한 번 하기도 전에 시스템 프롬프트 + CLAUDE.md + auto memory 등으로 **이미 수천 토큰이 먹혀 있어요.** `/context` 로 확인해서 프로젝트 `CLAUDE.md` 가 1,500 토큰을 넘으면 `@import` 구조를 가지치기하세요. 각 항목별 정확한 토큰 수는 [공식 Context Window 시뮬레이터](https://code.claude.com/docs/en/context-window) 에서 확인할 수 있습니다.
 
 ### 3-2. 전략적 선택: clear / compact / 서브에이전트
 
