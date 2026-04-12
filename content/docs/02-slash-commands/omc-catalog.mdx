@@ -27,7 +27,7 @@ flowchart TB
     subgraph 파이프라인["3단계 메인 파이프라인"]
         DI["deep-interview<br/>요구사항 명확화"]
         RP["ralplan<br/>Planner + Architect + Critic 합의"]
-        AP["autopilot<br/>전 자율 실행"]
+        AP["autopilot<br/>완전 자율 실행"]
         DI --> RP --> AP
     end
     subgraph 실행루프["실행 루프 계층"]
@@ -58,11 +58,11 @@ flowchart TB
 - **출력**: `.omc/specs/deep-interview-{slug}.md`
 - **쓸 때**: 아이디어가 막연할 때. "사용자 인증 시스템 만들고 싶은데 뭐가 좋을지 모르겠어" 같은 입력.
 - **쓰지 말 때**: 구체적인 요구사항이 이미 있을 때. 그 경우 바로 `/ralplan` 이나 `/autopilot` 으로.
-- **매직 키워드**: `deep interview`, `ouroboros`, `interview me`, `ask me everything`, `don't assume`, `I have a vague idea`.
+- **매직 키워드**: `deep interview`, `ouroboros`.
 
 ### 2-2. `/oh-my-claudecode:ralplan`
 
-- **역할**: `/oh-my-claudecode:omc-plan --consensus` 의 단축 alias. Planner → Architect → Critic 세 관점이 합의에 도달할 때까지 최대 5회 반복.
+- **역할**: 내부적으로 `omc-plan --consensus` 를 호출하는 합의 플래닝 스킬. Planner → Architect → Critic 세 관점이 합의에 도달할 때까지 최대 5회 반복하며, RALPLAN-DR 구조화된 심의 게이팅을 추가로 제공합니다.
 - **출력**: `.omc/plans/ralplan-*.md` 또는 `.omc/plans/consensus-*.md`
 - **플래그**:
   - `--interactive` — 최종 승인 시 사용자 프롬프트 활성화 (기본: 자동)
@@ -72,7 +72,7 @@ flowchart TB
 
 ### 2-3. `/oh-my-claudecode:autopilot`
 
-- **역할**: 가장 상위의 전 자율 실행 파이프라인. 요구분석 → 설계 → 병렬 구현 → QA → 멀티관점 검증.
+- **역할**: 가장 상위의 완전 자율 실행 파이프라인. 요구분석 → 설계 → 병렬 구현 → QA → 멀티관점 검증.
 - **Phase 자동 단축**:
   - `.omc/specs/deep-interview-*.md` 존재 → **Phase 0 스킵** (요구분석 생략, Phase 1 부터)
   - `.omc/plans/ralplan-*.md` 존재 → **Phase 0·1 모두 스킵** (Phase 2 실행부터)
@@ -95,7 +95,7 @@ autopilot 이 단독 실행되면 Phase 0 (Analyst 요구분석) + Phase 1 (Arch
   - `--no-deslop` — 완료 후 ai-slop-cleaner 패스 생략
   - `--critic=architect|critic|codex` — 완료 검증자 선택 (기본 architect)
 - **내부 흐름**: PRD 생성·정제 → story 별 구현 → 검증 → reviewer 승인 → **Step 7.5 ai-slop-cleaner** → Step 7.6 회귀 재검증 → `cancel`.
-- **매직 키워드**: `ralph`, `don't stop`, `must complete`, `until done`, `finish this`, `keep going until done`.
+- **매직 키워드**: `ralph`, `don't stop`, `must complete`, `until done`.
 
 ### 3-2. `/oh-my-claudecode:ultrawork`
 
@@ -110,7 +110,6 @@ autopilot 이 단독 실행되면 Phase 0 (Analyst 요구분석) + Phase 1 (Arch
 - **역할**: Claude Code 네이티브 팀 API 기반 N 개 에이전트 협업. v4.1.7 부터 기존 `/swarm` 을 대체.
 - **형식**: `/team 3:executor "task"`, `/team 2:codex 4:designer "task"`, `/team ralph "task"` (ralph 루프를 팀으로 래핑).
 - **파이프라인**: team-plan → team-prd → team-exec → team-verify → team-fix (필요 시 루프).
-- **활성화 필요**: `~/.claude/settings.json` 에 `"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"` 설정.
 - **주의**: `/team` (네이티브, in-session) 과 `/omc-teams` (tmux CLI 워커, 레거시) 는 다릅니다.
 
 ## 4. 진단 · 품질 · 종료
@@ -170,9 +169,10 @@ OMC 의 `UserPromptSubmit` 훅은 사용자 입력 문장을 스캔해서 키워
 |---|---|
 | `ultrawork`, `ulw`, `uw` | ultrawork |
 | `autopilot`, `build me`, `I want a`, `handle it all`, `end to end`, `e2e this` | autopilot |
-| `ralph`, `don't stop`, `must complete`, `until done`, `finish this` | ralph |
+| `ralph`, `don't stop`, `must complete`, `until done` | ralph |
 | `ralplan` | ralplan (= omc-plan --consensus) |
-| `deep interview`, `ouroboros`, `interview me`, `ask me everything` | deep-interview |
+| `deep interview`, `ouroboros` | deep-interview |
+| `deep dive`, `investigate deeply`, `trace and interview` | deep-dive |
 | `deep dive`, `investigate deeply`, `trace and interview` | deep-dive |
 | `deslop`, `anti-slop` | ai-slop-cleaner |
 | `ccg`, `claude-codex-gemini` | ccg |
@@ -251,8 +251,8 @@ deslop src/legacy/*.ts 를 정리해줘
 
 ## 9. 사라졌거나 바뀐 커맨드
 
-- **`/swarm`** — v4.1.7 에서 제거. `/team` 이 네이티브 Claude Code 팀 API 로 대체.
-- **Codex·Gemini MCP 서버** — v4.4.0 에서 제거. CLI 기반 `omc team N:codex` 또는 `/ccg` 가 대체.
+- **`/swarm`** — v4.x 에서 제거. `/team` 이 네이티브 Claude Code 팀 API 로 대체.
+- **Codex·Gemini MCP 서버** — v4.x 에서 제거. CLI 기반 `omc team N:codex` 또는 `/ccg` 가 대체.
 - **`/boulder`, `/ultrapilot`, `/pipeline`** — 독립 슬래시 커맨드로 존재하지 않습니다. `ultrapilot` 과 `pipeline` 은 cancel 이 인식하는 모드명으로만 남아 있어요.
 
 ## 10. 다음에 읽을 글

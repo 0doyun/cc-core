@@ -38,7 +38,7 @@ Claude Code 의 컨텍스트 관리는 크게 세 층입니다.
 
 ### 1-3. 컴팩션에서 살아남는 것 vs 사라지는 것
 
-공식 [Memory 문서 "What survives compaction"](https://code.claude.com/docs/en/memory) 섹션 기준.
+[공식 Context Window 문서](https://code.claude.com/docs/en/context-window) 및 커뮤니티 분석([Decode Claude](https://decodeclaude.com/compaction-deep-dive/)) 종합.
 
 | 살아남음 | 사라짐 |
 |---|---|
@@ -61,9 +61,9 @@ Claude Code 의 컨텍스트 관리는 크게 세 층입니다.
 
 ## 2. CLAUDE.md 계층 — 영속 지침 저장소
 
-### 2-1. 6 개 레이어
+### 2-1. 4 개 공식 스코프 + 2 개 보조 메커니즘
 
-[공식 Memory 문서](https://code.claude.com/docs/en/memory) 기준.
+[공식 Memory 문서](https://code.claude.com/docs/en/memory) 는 4 개 스코프(관리 정책·프로젝트·개인 전역·개인 로컬) 를 정의합니다. 여기에 서브디렉토리 지연 로드와 `rules/` 를 포함하면:
 
 | 스코프 | 경로 | 공유 범위 |
 |---|---|---|
@@ -169,25 +169,25 @@ flowchart TB
 
 ## 4. 공식 문서에 잘 없는 팁
 
-<Callout type="warn" title="60% 룰 — /compact 는 80% 에서 치지 말고 60% 에서 쳐라">
+<Callout type="warn" title="60% 룰 — 컨텍스트 60% 시점에서 실행">
 공식 문서는 컴팩션 타이밍을 명시하지 않습니다. 커뮤니티에서 검증된 패턴은 **컨텍스트가 60% 찼을 때** `/compact` 를 치는 것. 80–95% 까지 미루면 Claude 가 이미 열화된 정보로 요약을 만들게 돼요(Claude 의 출력 품질 자체가 떨어진 상태에서 요약됨). `/context` 로 시각화한 뒤 기능 하나 끝나는 자연스러운 경계에서 실행하는 게 이상적. 출처: [MindStudio — /compact command guide](https://www.mindstudio.ai/blog/claude-code-compact-command-context-management).
 </Callout>
 
-<Callout type="warn" title="컴팩션 직후 검증 프롬프트로 드롭 방지">
+<Callout type="warn" title="컴팩션 후 드롭 검증">
 컴팩션이 끝나면 곧바로 다음 한 줄을 치세요.
 
 ```text
 지금 우리가 어디까지 왔고 다음에 뭘 할 예정인지 한 번 요약해줘.
 ```
 
-요약이 엇나갔다면 이 시점에 교정 가능합니다. 이 확인 없이 그냥 작업을 이어가면 **드롭된 컨텍스트를 한참 뒤에 발견**하게 돼요. 출처: [Steve Kinney — Claude Code Compaction](https://stevekinney.com/courses/ai-development/claude-code-compaction).
+요약이 엇나갔다면 이 시점에 교정 가능합니다. 이 확인 없이 그냥 작업을 이어가면 **드롭된 컨텍스트를 한참 뒤에 발견**하게 돼요. 출처: 커뮤니티 실전 경험칙.
 </Callout>
 
-<Callout type="warn" title="Auto memory 는 조용히 커진다 — /memory 로 주기 점검 필수">
+<Callout type="warn" title="Auto memory 비대화 방지">
 Auto memory 는 Claude 가 자동으로 씁니다. 그래서 `MEMORY.md` 가 200 줄/25KB 를 넘어가면 **초과분은 세션 시작 시 로드되지 않아요.** 즉 어느 시점부터 "예전에 학습된 것이 갑자기 적용 안 되는" 현상이 생깁니다. `/memory` 커맨드로 주기적으로 열어보고, 토픽 파일을 마크다운으로 직접 편집·삭제해서 가지치기하세요. 이건 공식 Memory 문서에도 언급은 되지만 실전에서 얼마나 중요한지는 거의 안 강조됩니다.
 </Callout>
 
-<Callout type="warn" title="@import 는 5 단계까지 재귀 — 대형 README 에 주의">
+<Callout type="warn" title="@import 재귀 깊이 주의">
 `@path` import 는 최대 5 단계까지 재귀합니다. `CLAUDE.md` 가 `AGENTS.md` 를 import 하고, `AGENTS.md` 가 다시 `docs/architecture.md` 를 import 하면 첫 세션 로드부터 많은 토큰이 소비돼요. 특히 대형 `README.md` 나 `package.json` 을 `@` 로 걸면 컨텍스트 초기 비용이 예상보다 훨씬 큽니다. `/context` 로 프로젝트 `CLAUDE.md` 토큰 비중을 확인해서 1,500 토큰을 넘으면 import 구조를 가지치기하세요.
 </Callout>
 
