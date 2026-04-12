@@ -1,0 +1,172 @@
+---
+title: 공식 문서 밖의 숨은 팁
+description: Claude Code + OMC 공식 문서만 봐서는 모를 법한 실전 팁 모음. 커뮤니티에서 검증된 것들만 골랐습니다.
+---
+
+<Callout type="info">
+공식 문서는 "이런 기능이 있다"를 알려줍니다. 여기서는 **"그래서 실전에서 어떻게 쓰면 좋은데?"** 를 다룹니다. 모든 팁은 출처가 있고, 커뮤니티에서 검증된 것들만 골랐어요.
+</Callout>
+
+## 1. 환경 변수 — 알면 바뀌는 것들
+
+Claude Code 는 [공식 환경 변수 레퍼런스](https://code.claude.com/docs/en/env-vars)에 수십 개의 변수를 문서화하고 있지만, 조합법은 안 알려줘요.
+
+### opusplan — 비용 최적화 내장 모델
+
+```bash
+# Plan Mode 에서는 Opus, 실행에서는 Sonnet
+/model opusplan
+```
+
+`/model` 피커에서 선택 한 번이면 끝. 설계는 비싼 모델로, 구현은 저가 모델로 자동 분기합니다. 환경 변수로 고정하려면 `ANTHROPIC_MODEL=opusplan`.
+
+### settings.json 의 env 블록
+
+환경 변수를 쉘 프로필이 아니라 [설정 파일](https://code.claude.com/docs/en/model-config) 안에 넣을 수 있습니다:
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "env": {
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-6",
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "16000"
+  }
+}
+```
+
+`env` 블록이 없으면 `/model` 에서 "Default" 를 선택했을 때 최신 릴리즈로 풀려요. `env` 블록은 settings 파일에서 모든 세션에 걸쳐 모델을 고정하는 방법입니다.
+
+### 자동 compaction 시점 조절
+
+```bash
+export CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=60
+```
+
+기본값은 95% 인데, 그때는 이미 품질이 떨어지기 시작한 후예요. 60%로 낮추면 [Compact 활용법](/docs/03-session-context/compact-and-memory)에서 설명한 "60% 룰"이 자동으로 적용됩니다.
+
+<Callout type="warn" title="프록시 사용 시 모델 ID 함정">
+Claude Code 는 모델 ID 에서 `.includes()` 서브스트링 매칭으로 기능을 감지합니다. 프록시 별칭이 `claude-opus-4-5` (대시)가 아니라 `claude-opus-4.5` (점)이면 Opus 4.0 으로 fallback 돼서 64K 출력 토큰 제한을 잃어요. [Enterprise proxy 가이드](https://medium.com/@trevor00/claude-code-in-the-enterprise-model-mapping-for-llm-proxies-b0d8069c6aa3) 참고.
+</Callout>
+
+## 2. CLI 플래그 — 잘 안 알려진 것들
+
+[CLI 레퍼런스](https://code.claude.com/docs/en/cli-reference)에 있지만 눈에 띄지 않는 플래그들:
+
+| 플래그 | 용도 |
+|---|---|
+| `--bare` | Hook, Skills, Plugins, MCP, Auto Memory, CLAUDE.md 전부 건너뛰고 시작. CI/스크립트용 최고속 |
+| `--fork-session` | 세션 이어가기 시 새 세션 ID 생성. 체크포인트에서 분기 탐색 |
+| `--max-budget-usd 0.50` | API 비용 초과 시 중단 (print 모드) |
+| `--debug-file log.txt` | 디버그 로그를 파일로. 터미널 잡음 없이 사후 분석 |
+| `--append-system-prompt "..."` | 시스템 프롬프트를 교체하지 않고 **추가**. 팀 규칙 주입에 안전 |
+
+스크립트 파이프라인 예시:
+
+```bash
+claude -p "린트 돌리고 결과 요약해줘" \
+  --output-format stream-json \
+  --max-budget-usd 0.50 \
+  --bare
+```
+
+## 3. Hook 심화 — 공식 문서에 묻힌 패턴
+
+[Hooks 가이드](https://code.claude.com/docs/en/hooks-guide)는 길어서 핵심이 묻힙니다. 실전에서 차이를 만드는 세 가지:
+
+### if 필드로 정밀 필터링
+
+`matcher` 는 도구 이름만 걸러요. `if` 필드는 **인자까지** 봅니다:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "Bash",
+      "hooks": [{
+        "type": "command",
+        "if": "Bash(git push *)",
+        "command": "echo 'push 전 확인: 브랜치가 main 이 아닌지 체크' && git branch --show-current | grep -v '^main$'"
+      }]
+    }]
+  }
+}
+```
+
+### agent 타입 Hook — 멈추기 전 테스트 자동 실행
+
+```json
+{
+  "hooks": {
+    "Stop": [{
+      "hooks": [{
+        "type": "agent",
+        "prompt": "테스트 스위트를 실행하고 결과를 보고해. 실패하면 block.",
+        "timeout": 120
+      }]
+    }]
+  }
+}
+```
+
+`type: agent` 는 subagent 가 최대 50턴 동안 도구를 쓸 수 있어요. `type: command` 보다 훨씬 유연합니다.
+
+### stop_hook_active 가드
+
+Stop hook 이 실패하면 Claude 가 다시 작업하고, 또 Stop 하고, 또 hook 실패하고 — 무한 루프. 이걸 막으려면:
+
+```bash
+INPUT=$(cat)
+if [ "$(echo "$INPUT" | jq -r '.stop_hook_active')" = "true" ]; then
+  exit 0  # 이미 한 번 실행됨 — 통과
+fi
+npm test --silent 2>/dev/null || exit 2
+```
+
+<Callout type="warn" title="쉘 프로필 echo 함정">
+`~/.zshrc` 에 조건 없는 `echo` 문이 있으면 hook JSON 파싱이 깨집니다. Claude Code 가 hook 프로세스를 spawn 할 때 쉘 프로필을 source 하거든요. `[[ $- == *i* ]]` 로 인터랙티브 쉘에서만 echo 하게 감싸세요.
+</Callout>
+
+## 4. CLAUDE.md 고급 패턴
+
+### RFC 2119 언어 사용
+
+"TypeScript strict mode 를 선호합니다" → 무시당함.
+"TypeScript strict mode 를 MUST 사용합니다" → 따름.
+
+[커뮤니티 분석](https://dev.to/cleverhoods/claudemd-best-practices-from-basic-to-adaptive-9lm)에 따르면, `MUST` / `MUST NOT` / `SHOULD` 같은 RFC 2119 키워드를 쓰면 준수율이 눈에 띄게 올라갑니다.
+
+### 경로별 규칙 분리
+
+`.claude/rules/` 디렉토리에 frontmatter 로 glob 패턴을 지정하면, 해당 디렉토리의 파일을 읽을 때만 규칙이 로드됩니다:
+
+```markdown
+---
+paths:
+  - "src/api/**"
+---
+# API Rules
+MUST version all endpoints (/v1/, /v2/)
+```
+
+하위 디렉토리 CLAUDE.md 는 세션 시작 시 로드되지 않아요 — Claude 가 해당 디렉토리의 파일을 읽는 순간 lazy-load 됩니다. 큰 레퍼런스 파일을 넣어도 초기 컨텍스트 비용이 0입니다.
+
+## 다음에 읽을 글
+
+- [Session & Context — Compact 활용법](/docs/03-session-context/compact-and-memory) — 컨텍스트 관리 전략 상세
+- [Slash Commands — Claude Code 카탈로그](/docs/02-slash-commands/claude-code-catalog) — 모든 네이티브 커맨드 레퍼런스
+
+## 참고 자료
+
+- [Claude Code — Environment Variables](https://code.claude.com/docs/en/env-vars) — 전체 환경 변수 레퍼런스
+- [Claude Code — CLI Reference](https://code.claude.com/docs/en/cli-reference) — 전체 플래그 목록
+- [Claude Code — Hooks Guide](https://code.claude.com/docs/en/hooks-guide) — Hook 이벤트, 타입, if 필드
+- [Claude Code — Model Config](https://code.claude.com/docs/en/model-config) — opusplan, effort, env 블록
+- [Claude Code — Best Practices](https://code.claude.com/docs/en/best-practices) — CLAUDE.md, subagent, 컨텍스트
+- [CLAUDE.md Maturity Model (DEV Community)](https://dev.to/cleverhoods/claudemd-best-practices-from-basic-to-adaptive-9lm) — L0-L6 프레임워크
+- [Enterprise Proxy Model Mapping](https://medium.com/@trevor00/claude-code-in-the-enterprise-model-mapping-for-llm-proxies-b0d8069c6aa3) — 프록시 ID 매칭 주의사항
+
+---
+
+<Callout type="info">
+**Last verified: 2026-04-12** — Claude Code v2.1.101 / OMC v4.11.5 기준.
+</Callout>
