@@ -1,0 +1,159 @@
+---
+title: 프롬프트 단축어와 패턴
+description: Claude Code 에서 자주 쓰는 프롬프트 패턴과 CLI 플래그 조합. 도구 제한, 출력 포맷, 멀티턴 워크플로, CI/CD 파이프라인까지.
+---
+
+<Callout type="info">
+같은 요청이라도 **어떻게 말하느냐**에 따라 Claude Code 의 행동이 달라집니다. 여기서는 공식 문서에서 추출한 패턴과 커뮤니티에서 검증된 프롬프트 관용구를 모았어요.
+</Callout>
+
+## 1. 탐색 → 설계 → 구현 → 커밋 (4단계 패턴)
+
+[공식 Best Practices](https://code.claude.com/docs/en/best-practices) 가 권장하는 멀티턴 워크플로의 핵심은 **모드 전환**입니다:
+
+```
+# 1단계 — Plan 모드: 코드만 읽고 구조 파악
+read src/auth/ and explain how sessions work.
+
+# 2단계 — Plan 모드: 변경 계획 수립
+I want to add Google OAuth. What files need to change? Create a plan.
+
+# 3단계 — Normal 모드: 구현
+Implement the OAuth flow from your plan.
+Write tests for the callback handler, run the test suite.
+
+# 4단계 — 커밋
+Commit with a descriptive message and open a PR.
+```
+
+1~2단계에서 `/plan` 을 쓰면 Claude 가 파일을 읽되 수정하지 않습니다. 구조를 충분히 이해한 뒤 Normal 모드로 전환해서 구현하면, "일단 코딩하고 나중에 고치기" 패턴보다 훨씬 정확해요.
+
+## 2. 도구 제한 — 읽기 전용 에이전트 만들기
+
+[CLI 레퍼런스](https://code.claude.com/docs/en/cli-reference)의 `--tools` 플래그로 Claude 가 쓸 수 있는 도구를 제한할 수 있습니다:
+
+```bash
+# 읽기 전용 — 코드 수정 불가
+claude -p "review this code for security issues" --tools "Read,Grep,Glob"
+
+# 특정 Bash 명령만 허용
+claude -p "fix lint errors" \
+  --allowedTools "Bash(npm run lint:*),Edit,Read"
+
+# 웹 접근 차단
+claude -p "refactor auth module" \
+  --disallowedTools "WebFetch,WebSearch"
+```
+
+| 플래그 | 효과 |
+|---|---|
+| `--tools "Read,Grep"` | 빌트인 도구 세트에서 이것만 활성화 |
+| `--allowedTools "Bash(git:*)"` | 허용 목록에 추가 (확인 없이 실행) |
+| `--disallowedTools "WebFetch"` | 컨텍스트에서 완전 제거 (사용 불가) |
+
+<Callout type="warn" title="권한 규칙의 공백 의미">
+`Bash(ls *)` 는 `ls -la`, `ls /tmp` 에 매칭되지만 `lsof` 에는 안 매칭돼요. 공백 없이 `Bash(ls*)` 라고 쓰면 `lsof` 도 매칭됩니다. [공식 권한 문서](https://code.claude.com/docs/en/permissions)에 있지만 놓치기 쉬운 규칙이에요.
+</Callout>
+
+## 3. Print 모드 — 스크립트에서 Claude 쓰기
+
+`-p` 플래그는 Claude Code 를 [비인터랙티브 모드](https://code.claude.com/docs/en/headless)로 실행합니다:
+
+```bash
+# 기본 — 결과만 출력하고 종료
+claude -p "이 프로젝트를 한 줄로 요약해줘"
+
+# 파이프 입력
+cat error.log | claude -p "이 에러의 원인을 분석해줘"
+
+# JSON 출력 — jq 로 결과 추출
+claude -p "함수 목록 추출" --output-format json | jq -r '.result'
+
+# 세션 이어가기
+session=$(claude -p "코드 리뷰 시작" --output-format json | jq -r '.session_id')
+claude -p "보안 이슈에 집중해줘" --resume "$session"
+```
+
+### CI/CD 파이프라인 패턴
+
+```bash
+# PR diff 보안 리뷰
+gh pr diff "$PR_NUMBER" | claude -p \
+  --append-system-prompt "You are a security engineer." \
+  --output-format json \
+  --bare \
+  --max-budget-usd 2.00 \
+  | jq -r '.result'
+```
+
+`--bare` 는 Hooks, MCP, 플러그인, CLAUDE.md 자동 탐색을 건너뛰어 최고속으로 실행합니다 (Skills 는 `/skill-name` 으로 여전히 호출 가능). `ANTHROPIC_API_KEY` 환경변수가 필요해요 — OAuth 나 키체인은 읽지 않습니다. `--append-system-prompt` 는 기본 시스템 프롬프트를 유지하면서 역할만 추가해요.
+
+## 4. 효과적인 프롬프트 vs 비효과적인 프롬프트
+
+[공식 Best Practices](https://code.claude.com/docs/en/best-practices)와 [커뮤니티 가이드](https://medium.com/@tonimaxx/the-ultimate-guide-to-claude-code-production-prompts-power-tricks-and-workflow-recipes-42af90ca3b4a)에서 추출한 패턴:
+
+| 약한 프롬프트 | 강한 프롬프트 |
+|---|---|
+| "테스트 추가해줘" | "foo.py 에서 로그아웃 상태 edge case 테스트 작성. mock 금지" |
+| "이 버그 수정해줘" | "로그인이 세션 타임아웃 후 실패함. src/auth/ 의 토큰 리프레시 확인. 재현 테스트 먼저 작성" |
+| "위젯 만들어줘" | "HotDogWidget.php 패턴을 참고해서 캘린더 위젯 추가" |
+| "왜 이 API 이상해?" | "ExecutionFactory 의 git history 를 보고 API 가 이렇게 된 경위를 정리해줘" |
+
+핵심 원칙: **증상을 묘사하고, 맥락을 가리키고, 검증 기준을 명시하세요.**
+
+## 5. 구조화된 출력 요청
+
+```bash
+# JSON Schema 로 출력 강제
+claude -p "src/api/ 에서 모든 엔드포인트를 추출해줘" \
+  --output-format json \
+  --json-schema '{"type":"object","properties":{"endpoints":{"type":"array","items":{"type":"string"}}}}'
+```
+
+`--json-schema` 를 쓰면 응답이 `structured_output` 필드에 스키마에 맞춰 들어옵니다. Print 모드에서만 동작해요.
+
+인터랙티브 모드에서는 프롬프트로 포맷을 지정합니다:
+
+```
+결과를 마크다운 표로 정리해줘. 컬럼: 파일, 이슈, 심각도.
+JSON 배열로 반환해줘. 각 항목에 severity 필드 포함.
+```
+
+## 6. 유용한 프롬프트 관용구
+
+```bash
+# 사이드 질문 — 대화 히스토리에 안 남음
+/btw TypeScript에서 readonly 배열 타입 어떻게 만들어?
+
+# 컴팩트 시 가이드 지정
+/compact API 변경사항에 집중해서 요약해��
+
+# 모델 전환 — 복잡한 분석만 Opus
+/model opus
+# 설계 완료 후 구현은 Sonnet 으로
+/model sonnet
+```
+
+<Callout type="warn" title="IMPORTANT 키워드의 효과">
+공식 문서가 [명시적으로 인정](https://code.claude.com/docs/en/best-practices)합니다: `IMPORTANT` 나 `YOU MUST` 같은 강조 표현이 준수율을 높인다고요. CLAUDE.md 뿐 아니라 프롬프트에서도 마찬가지예요. 단, [규칙이 많을수록 준수율이 떨어지니](/docs/07-tips-tricks/claude-md-patterns) 핵심 지시에만 쓰세요.
+</Callout>
+
+## 다음에 읽을 글
+
+- [실전 CLAUDE.md 패턴](/docs/07-tips-tricks/claude-md-patterns) — 프롬프트를 넘어 영속적인 규칙으로 만드는 법
+- [바이브코딩 파이프라인](/docs/04-workflows/vibe-coding-pipeline) — 탐색→설계→구현 패턴의 풀 레시피
+
+## 참고 자료
+
+- [Claude Code — Best Practices](https://code.claude.com/docs/en/best-practices) — 멀티턴 패턴, 강조 언어
+- [Claude Code — CLI Reference](https://code.claude.com/docs/en/cli-reference) — 전체 플래그 목록
+- [Claude Code — Headless Mode](https://code.claude.com/docs/en/headless) — print 모드, output-format, json-schema
+- [Claude Code — Permissions](https://code.claude.com/docs/en/permissions) — 권한 규칙 문법, 공백 규칙
+- [Claude Code — Sub-agents](https://code.claude.com/docs/en/sub-agents) — 커스텀 subagent 정의
+- [Ultimate Guide to Claude Code](https://medium.com/@tonimaxx/the-ultimate-guide-to-claude-code-production-prompts-power-tricks-and-workflow-recipes-42af90ca3b4a) — 커뮤니티 프롬프트 레시피 (2026-03)
+
+---
+
+<Callout type="info">
+**Last verified: 2026-04-13** — Claude Code v2.1.101 기준.
+</Callout>
