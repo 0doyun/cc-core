@@ -193,63 +193,35 @@ flowchart TB
 
 이 한 문장이 많은 걸 말해줘요. OMC 는 **"Claude Code 를 대체하는 도구"** 가 아니라 **"Claude Code 위에 얹은 조직화 레이어"** 로 자신을 규정합니다. 즉 runtime harness (Claude Code) 를 그대로 둔 채, 그 위에 **workflow harness 를 덧씌워주는 패키지**인 거죠.
 
-OMC 가 구체적으로 제공하는 workflow harness 구성요소:
+OMC 가 제공하는 workflow harness 구성요소를 4가지로 묶을 수 있어요:
 
-### 4-1. 워크플로 템플릿 (Skills)
+- **워크플로 템플릿 (Skills)** — `/autopilot`, `/ralph`, `/team`, `/trace`, `/deep-interview` 같은 슬래시 커맨드. 특정 상황에서 에이전트가 어떻게 움직일지 미리 짜놓은 재사용 단위
+- **Subagent 역할 카탈로그** — explore, planner, executor, code-reviewer 등 19개 이상의 역할별 에이전트. 작업 분해·병렬화의 재료
+- **Magic Keyword 라우팅** — `"ralph 이 버그 뿌리뽑아줘"` 같은 자연어 키워드를 UserPromptSubmit hook 이 잡아서 적절한 Skill 로 자동 라우팅
+- **상태 관리** — `.omc/state/`, `.omc/notepad.md`, `.omc/prd.json` 으로 에이전트 간·세션 간 상태 공유
 
-`/autopilot`, `/ralph`, `/team`, `/trace`, `/deep-interview` 같은 슬래시 커맨드들. 이건 전부 **특정 상황에서 에이전트가 어떻게 움직일지** 미리 짜놓은 워크플로 템플릿이에요.
+자세한 카탈로그는 [OMC 슬래시 커맨드 카탈로그](/docs/02-slash-commands/omc-catalog) 에서 다룹니다. 핵심은 OMC 가 **"직접 만들기 귀찮은 workflow harness 를 플러그인 한 번 설치로 가져다 쓰게 해주는 기성품"** 이라는 점이에요.
 
-예를 들어 `/deep-interview` 를 치면:
-1. Socratic Q&A 로 요구사항의 모호성 정량화
-2. 명료도 점수가 임계값 이하로 떨어질 때까지 질문 반복
-3. 크리스털화된 spec 을 `.omc/specs/` 에 저장
-4. 다음 단계(ralplan / autopilot / ralph) 로 브리지
+## 5. 엄밀함의 이동 — Prompt → Context → Harness
 
-이 흐름을 매번 직접 구성하지 않고, `/deep-interview` 하나 치면 재현됩니다.
+"그럼 프롬프트 엔지니어링이나 컨텍스트 엔지니어링이랑 뭐가 달라요?" Jonas Kim 의 [에이전틱 패턴 진화 분석](https://bits-bytes-nn.github.io/insights/agentic-ai/2026/04/05/evolution-of-ai-agentic-patterns.html) 이 가장 명료한 답을 줍니다. 핵심 명제:
 
-### 4-2. Subagent 역할 카탈로그
+> "엔지니어링의 엄밀함은 사라지지 않았습니다. 이동했을 뿐입니다."
+> — Jonas Kim, 2026-04-05
 
-OMC 는 explore, planner, executor, code-reviewer, architect, verifier, designer, writer, test-engineer 등 **19개 이상의 역할별 에이전트**를 정의해놓습니다. 메인 에이전트가 혼자 다 하는 게 아니라 필요할 때 해당 역할 에이전트를 불러다 쓰는 구조예요. 이게 작업 분해·병렬화의 재료가 됩니다.
-
-### 4-3. Hooks 확장 & Magic Keyword 라우팅
-
-OMC 는 사용자 입력에 특정 키워드가 들어있으면 자동으로 대응하는 Skill 로 라우팅합니다. 예:
-
-```
-사용자: "ralph 이 버그 좀 뿌리뽑아줘"
-  ↓ UserPromptSubmit hook
-OMC: [ralph skill 자동 발동] → ralph 루프 시작
-```
-
-이건 workflow harness 의 "사용자 입력을 의도로 해석하는 층" 입니다.
-
-### 4-4. 상태 관리 / 메모리
-
-`.omc/state/`, `.omc/notepad.md`, `.omc/plans/`, `.omc/prd.json` 같은 파일 구조로 **에이전트 간, 세션 간 상태를 공유**하게 해줍니다. runtime harness 만 쓰면 세션이 끝나면 증발해버리는 정보들을 workflow harness 가 잡아둡니다.
-
----
-
-정리하면 OMC 는 **"Claude Code 한 대만으로는 직접 만들기 어려운 workflow harness 를, 플러그인 한 번 설치로 가져다 쓰게 해주는 기성품"** 입니다. 직접 hooks/skills/subagent 를 처음부터 설계할 수도 있지만, OMC 같은 레퍼런스 구현을 먼저 써보고 자기 스타일로 바꿔가는 게 학습곡선 측면에서 훨씬 효율적이에요.
-
-## 5. Harness Engineering 과 주변 개념들의 관계
-
-"그럼 프롬프트 엔지니어링이나 컨텍스트 엔지니어링이랑 뭐가 달라요?" 라는 질문은 필연적입니다. HumanLayer 와 Martin Fowler 글을 기반으로 정리하면:
-
-| 개념 | 범위 | 초점 |
+| 시대 | 엄밀함이 사는 곳 | 약속 불이행으로 다음 시대로 |
 |---|---|---|
-| **Prompt engineering** | 단일 프롬프트 / 한 턴 | 개별 지시의 표현·구조 |
-| **Context engineering** | 하나의 추론 세션 | 컨텍스트 윈도우에 뭘 넣고 뭘 뺄지 |
-| **Scaffolding** | 실행 이전의 조립 단계 | 시스템 프롬프트, 툴 스키마, subagent 등록 — 첫 프롬프트 전에 만들어둠 |
-| **Agent orchestration** | 다중 에이전트 | 여러 에이전트를 어떻게 시퀀싱·위임·합성할지 |
-| **Harness engineering** | 시스템 전체, 지속적 | guides + sensors 를 설계하고, 실수를 영구 엔지니어링 문제로 전환 |
+| **Prompt engineering** (2022-2024) | 단일 프롬프트 표현 | 같은 프롬프트가 다음 턴에 무너짐 |
+| **Context engineering** (2025) | 컨텍스트 윈도우 큐레이션 | 한 세션 안에서만 유효, 시스템 전체엔 답 못 줌 |
+| **Harness engineering** (2026~) | 시스템 전체 — 도구·권한·피드백 루프 | (현재) |
 
-HumanLayer 가 제시한 단순 수식이 가장 명확해요.
+각 시대는 이전 시대의 한계 때문에 촉발됐어요. 프롬프트만 잘 써도 안 되니까 컨텍스트로 갔고, 컨텍스트만 잘 채워도 안 되니까 하네스로 옮겨간 거죠. HumanLayer 의 단순 수식이 이 관계를 압축합니다:
 
 ```
 coding agent = AI model(s) + harness
 ```
 
-그리고 harness engineering 은 **context engineering 의 상위 개념**입니다. 컨텍스트 윈도우 관리는 harness 의 한 부분일 뿐이고, harness 에는 툴 설정, 권한 설계, 피드백 루프(테스트·린터), 세션 아키텍처까지 포함되니까요.
+Harness engineering 은 **context engineering 의 상위 개념**입니다. 컨텍스트 윈도우 관리는 harness 의 한 부분일 뿐이고, harness 에는 툴 설정, 권한 설계, 피드백 루프(테스트·린터), 세션 아키텍처까지 포함되니까요.
 
 ## 6. 왜 지금 이게 중요한가
 
@@ -300,6 +272,7 @@ CC CORE 의 모든 카테고리는 harness 의 어떤 부위를 다루는지로 
 - [The Claude Code Leak: 10 Agentic AI Harness Patterns](https://kenhuangus.substack.com/p/the-claude-code-leak-10-agentic-ai) — Ken Huang, 2026-04-01
 
 **개념적 배경:**
+- [Evolution of AI Agentic Patterns: From Prompts to Harnesses](https://bits-bytes-nn.github.io/insights/agentic-ai/2026/04/05/evolution-of-ai-agentic-patterns.html) — Jonas Kim, 2026-04-05 (엄밀함의 이동)
 - [Geoffrey Huntley — Agent workshop](https://ghuntley.com/agent/) — harness 어휘의 일관된 사용 예시
 - [Claude Code overview](https://code.claude.com/docs/en/overview) — Anthropic 공식 소개
 - [Building agents with the Claude Agent SDK](https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk) — Anthropic Engineering
