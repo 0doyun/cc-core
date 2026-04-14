@@ -1,0 +1,208 @@
+---
+title: 나만의 슬래시 커맨드 만들기
+description: Claude Code 의 Skills 시스템으로 자주 쓰는 워크플로를 재사용 가능한 슬래시 커맨드로 만드는 법. 파일 구조부터 실전 예시까지.
+---
+
+<Callout type="info">
+Claude Code 에서 매번 같은 지시를 반복하고 있다면, 그건 Skill 로 만들 때가 된 겁니다. 마크다운 파일 하나 만들면 `/내이름` 으로 호출되는 커스텀 슬래시 커맨드가 됩니다.
+</Callout>
+
+## 1. 두 가지 포맷 — Commands vs Skills
+
+Claude Code 는 커스텀 커맨드를 [두 가지 포맷](https://code.claude.com/docs/en/slash-commands)으로 지원합니다.
+
+| 포맷 | 경로 | 특징 |
+|---|---|---|
+| Legacy commands | `.claude/commands/<name>.md` | 단일 파일, 간단 |
+| **Skills (권장)** | `.claude/skills/<name>/SKILL.md` | 디렉토리 구조, 풍부한 설정 |
+
+이름이 겹치면 Skill 이 우선합니다. 새로 만든다면 Skills 포맷을 쓰세요.
+
+### 스코프
+
+| 스코프 | 경로 | 적용 범위 |
+|---|---|---|
+| 프로젝트 | `.claude/skills/<name>/SKILL.md` | 이 레포에서만 |
+| 개인 | `~/.claude/skills/<name>/SKILL.md` | 내 모든 프로젝트 |
+| 플러그인 | `<plugin>/skills/<name>/SKILL.md` | 플러그인 설치 시 |
+
+## 2. SKILL.md 파일 구조
+
+```markdown
+---
+name: fix-issue
+description: GitHub 이슈를 번호로 받아 수정합니다.
+argument-hint: "[issue-number]"
+allowed-tools: Bash(gh:*) Bash(git:*)
+---
+
+GitHub 이슈 $ARGUMENTS 를 프로젝트 코딩 컨벤션에 맞게 수정하세요.
+
+## 컨텍스트
+- 이슈 내용: !`gh issue view $ARGUMENTS`
+- 현재 브랜치: !`git branch --show-current`
+
+## 단계
+1. 이슈 요구사항 파악
+2. 해당 파일 수정
+3. 테스트 작성 또는 업데이트
+4. Conventional Commits 포맷으로 커밋
+```
+
+호출: `/fix-issue 123`
+
+### frontmatter 주요 필드
+
+| 필드 | 용도 |
+|---|---|
+| `name` | 표시 이름. 생략하면 디렉토리 이름 사용 |
+| `description` | 설명. Claude 가 자동 호출 여부를 판단하는 데도 사용 |
+| `argument-hint` | 자동완성 시 표시할 인자 힌트 |
+| `allowed-tools` | Skill 실행 중 사용 가능한 도구 목록. 목록에 없는 도구는 차단됨 |
+| `model` | 이 Skill 전용 모델 오버라이드 |
+| `effort` | `low` / `medium` / `high` / `max` |
+| `context` | `fork` 로 설정하면 격리된 subagent 에서 실행 |
+| `disable-model-invocation` | `true` 면 사용자만 호출 가능 (Claude 자동 호출 차단) |
+| `user-invocable` | `false` 면 `/` 메뉴에 안 보임 (Claude 전용) |
+| `paths` | glob 패턴. 해당 경로 파일 작업 시만 자동 활성화 |
+
+### 호출 제어 매트릭스
+
+| 설정 | 사용자 호출 | Claude 자동 호출 |
+|---|---|---|
+| (기본) | O | O |
+| `disable-model-invocation: true` | O | X |
+| `user-invocable: false` | X | O |
+
+<Callout type="warn" title="자동 호출과 수동 호출의 차이">
+`description` 에 "이슈를 수정할 때 사용" 같은 문구를 넣으면, 사용자가 "이슈 수정해줘"라고 말했을 때 Claude 가 이 Skill 을 **자동으로** 호출할 수 있어요. 의도치 않은 자동 호출이 싫다면 `disable-model-invocation: true` 를 붙이세요. 공식 문서에 이 동작 설명이 있지만, 많은 사람이 놓치는 부분입니다.
+</Callout>
+
+## 3. 동적 컨텍스트 주입 — `!` 문법
+
+Skill 의 킬러 피처는 **`!` 문법**입니다. 쉘 명령어 실행 결과를 Skill 본문에 인라인으로 주입해요.
+
+```markdown
+## 컨텍스트
+- 최근 커밋: !`git log --oneline -5`
+- 현재 diff: !`git diff HEAD`
+- 패키지 버전: !`cat package.json | jq '.version'`
+```
+
+Claude 가 이 Skill 을 실행하면, `!` 명령어가 **먼저** 돌아가고 결과가 텍스트로 치환된 후 프롬프트로 들어갑니다. 매번 "git log 좀 봐줘" 를 말할 필요가 없어지는 거예요.
+
+여러 줄 명령어는 코드 블록으로:
+
+````markdown
+```!
+find src -name "*.test.ts" | head -20
+```
+````
+
+## 4. 실전 예시 3개
+
+### 예시 1: PR 리뷰어
+
+```
+.claude/skills/review-pr/SKILL.md
+```
+
+```markdown
+---
+name: review-pr
+description: 현재 브랜치의 변경사항을 리뷰합니다.
+allowed-tools: Bash(git:*) Bash(gh:*)
+disable-model-invocation: true
+---
+
+현재 브랜치의 변경사항을 꼼꼼히 리뷰해주세요.
+
+## 변경사항
+!`git diff main...HEAD`
+
+## 체크리스트
+- 타입 안전성
+- 에러 핸들링
+- 테스트 커버리지
+- 보안 (인젝션, 하드코딩된 시크릿)
+```
+
+호출: `/review-pr`
+
+### 예시 2: 컨벤션 준수 커밋
+
+```markdown
+---
+name: cc
+description: Conventional Commits 포맷으로 커밋합니다.
+allowed-tools: Bash(git:*)
+---
+
+현재 staged 변경사항을 분석하고 Conventional Commits 포맷으로 커밋하세요.
+
+## staged 변경사항
+!`git diff --cached`
+
+## 규칙
+- type: feat, fix, docs, refactor, test, chore 중 선택
+- scope: 변경된 모듈/디렉토리
+- 본문은 한국어, 2줄 이내
+```
+
+호출: `/cc`
+
+### 예시 3: 프로젝트 온보딩
+
+```markdown
+---
+name: onboard
+description: 프로젝트 구조를 파악하고 요약합니다.
+context: fork
+---
+
+이 프로젝트의 구조를 파악하고 아래 형식으로 요약해주세요.
+
+## 참고 파일
+- 설정: !`ls -la *.config.* *.json 2>/dev/null | head -10`
+- 소스 구조: !`find src -type f | head -30`
+- README: !`cat README.md 2>/dev/null | head -50`
+
+## 요약 형식
+1. 기술 스택
+2. 디렉토리 구조
+3. 빌드/테스트 명령어
+4. 핵심 진입점
+```
+
+`context: fork` 로 subagent 에서 실행되니 메인 세션 컨텍스트를 잡아먹지 않습니다.
+
+<Callout type="warn" title="Skill 디렉토리에 보조 파일 넣기">
+Skill 디렉토리 안에 템플릿, 예시, 스크립트를 같이 넣을 수 있어요. CLAUDE_SKILL_DIR 변수로 Skill 디렉토리 경로를 참조하고, 보조 파일을 동적 주입할 수 있습니다. 이건 legacy commands 포맷에서는 안 되는 기능입니다.
+</Callout>
+
+## 5. OMC 의 Skill 확장
+
+[OMC](/docs/02-slash-commands/omc-catalog)는 표준 Skill 시스템 위에 추가 frontmatter 를 덧붙입니다:
+
+- `triggers` — `/learner` 가 추출한 Skill 에 사용. 이 키워드가 대화에 나타날 때 Skill 을 제안
+- `pipeline` — 스킬 체이닝 순서를 선언 (핸드오프 힌트, 자동 실행은 아님)
+- `level` — 복잡도 티어
+
+OMC 의 `/learner` 스킬은 현재 대화에서 반복되는 패턴을 발견하면 자동으로 Skill 로 추출해서 `~/.claude/skills/omc-learned/` 에 저장합니다. "자주 쓰는 패턴이 있는데 Skill 로 만들기 귀찮다" 면 이걸 쓰세요.
+
+## 다음에 읽을 글
+
+- [Claude Code 네이티브 커맨드 카탈로그](/docs/02-slash-commands/claude-code-catalog) — 기본 제공 슬래시 커맨드 전체 목록
+- [숨은 팁 모음](/docs/07-tips-tricks/hidden-gems) — `--bare` 로 Skill 건너뛰기, Hook 과의 조합 패턴
+
+## 참고 자료
+
+- [Claude Code — Slash Commands](https://code.claude.com/docs/en/slash-commands) — Skills/Commands 공식 레퍼런스
+- [Claude Code — Best Practices](https://code.claude.com/docs/en/best-practices) — Skill 활용 권장 패턴
+- [oh-my-claudecode GitHub](https://github.com/Yeachan-Heo/oh-my-claudecode) — OMC Skill 확장
+
+---
+
+<Callout type="info">
+**Last verified: 2026-04-12** — Claude Code v2.1.101 / OMC v4.11.5 기준.
+</Callout>

@@ -2,5 +2,5 @@
   "title": "Git & Versioning",
   "description": "AI 시대의 버전 관리",
   "icon": "GitBranch",
-  "pages": ["index", "ai-assisted-git-strategy", "commit-conventions-for-ai", "protecting-main-branch"]
+  "pages": ["index", "ai-git-strategy", "commit-conventions-for-ai", "protecting-main-branch"]
 }

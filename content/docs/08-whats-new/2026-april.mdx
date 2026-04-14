@@ -1,0 +1,97 @@
+---
+title: 2026년 4월 업데이트 요약
+description: Claude Code v2.1.69-v2.1.101, OMC v4.9.3-v4.11.5, MCP 거버넌스 이전까지 — 2026년 3-4월 생태계 변화 한눈에 보기.
+---
+
+<Callout type="info">
+2026년 3~4월은 Claude Code 생태계가 **"실험 도구"에서 "프로덕션 인프라"로** 넘어간 시점입니다. 1M 컨텍스트 기본 활성화, Hook 이벤트 대폭 확장, MCP 의 Linux Foundation 이전 — 세 가지 축으로 정리합니다.
+</Callout>
+
+## 1. Claude Code — v2.1.69 ~ v2.1.101 (3/5 ~ 4/10)
+
+6주 동안 30개 이상의 패치가 나왔습니다. [전체 체인지로그](https://code.claude.com/docs/en/changelog)에서 사용자 임팩트가 큰 것만 추리면:
+
+### 1M 컨텍스트 + 128K 출력
+
+- **v2.1.75** (3/13) — Opus 4.6 의 **1M 토큰 컨텍스트**가 Max/Team/Enterprise 에서 기본 활성화
+- **v2.1.77** (3/17) — Opus 4.6 기본 출력 64K, Opus 4.6 및 Sonnet 4.6 상한 **128K**로 확대
+
+이전에는 컨텍스트 터지기 전에 `/compact` 를 반복해야 했는데, 1M 윈도우에서는 중간 규모 프로젝트의 전체 코드베이스를 한 세션에 넣을 수 있게 됐어요. [Compact 활용법](/docs/03-session-context/compact-and-memory)의 전략이 여전히 유효하지만, 압박이 훨씬 줄었습니다.
+
+### Hook 이벤트 대폭 확장
+
+3~4월에 추가된 Hook 이벤트만 정리해도 이만큼입니다:
+
+| 버전 | 추가된 Hook |
+|---|---|
+| v2.1.76 (3/14) | `PostCompact`, `Elicitation`, `ElicitationResult` |
+| v2.1.78 (3/17) | `StopFailure` |
+| v2.1.83 (3/25) | `CwdChanged`, `FileChanged` |
+| v2.1.84 (3/26) | `TaskCreated`, `WorktreeCreate` |
+| v2.1.85 (3/26) | 조건부 `if` 필드 (인자 수준 필터링) |
+| v2.1.89 (4/1) | `defer` 퍼미션 결정 |
+
+특히 **`if` 필드** (v2.1.85) 는 Hook 의 실용성을 한 단계 올렸어요. `matcher` 가 도구 이름만 걸렀다면, `if` 는 인자까지 봅니다. 예: `if: "Bash(git push *)"` — git push 만 잡고 다른 Bash 명령은 통과. [숨은 팁](/docs/07-tips-tricks/hidden-gems)에서 코드 예시를 다룹니다.
+
+### 기타 주목할 변경
+
+- **v2.1.71** (3/7) — `/loop` 커맨드 + Cron 스케줄링 도구 (`CronCreate`, `CronList`, `CronDelete`)
+- **v2.1.83** (3/25) — 대화 검색 (`/` 키), 외부 에디터 (`Ctrl+X Ctrl+E`)
+- **v2.1.84** (3/26) — **Windows PowerShell** 도구 (opt-in preview)
+- **v2.1.94** (4/7) — **Amazon Bedrock Mantle** 지원, 기본 effort `high` 로 상향
+- **v2.1.98** (4/9) — **Google Vertex AI** 설정 마법사, Linux 서브프로세스 PID 네임스페이스 격리
+- **v2.1.101** (4/10) — `/team-onboarding`, OS CA 인증서 스토어 신뢰 (기업 TLS 프록시 지원)
+
+<Callout type="warn" title="Haiku 3 지원 종료 임박">
+`claude-3-haiku-20240307` 은 **2026년 4월 19일**에 retire 됩니다. `ANTHROPIC_DEFAULT_HAIKU_MODEL` 을 `claude-haiku-4-5-20251001` 로 바꾸지 않은 프록시/스크립트는 해당 날짜부터 400 에러를 받게 돼요. [모델 문서](https://platform.claude.com/docs/en/about-claude/models/overview) 참고.
+</Callout>
+
+## 2. OMC — v4.9.3 ~ v4.11.5 (3/28 ~ 4/11)
+
+[OMC GitHub releases](https://github.com/Yeachan-Heo/oh-my-claudecode/releases)에서 주요 변경:
+
+### HUD 성숙 + 보안 강화
+
+- **v4.10.0** (4/3) — HUD 에 worktree 감지 추가, Kotlin LSP 3.17 pull diagnostics, `/self-improve` 스킬, 보안 강화 7건
+- **v4.11.0** (4/7) — LLM Wiki 지식 레이어, Codex 가용성 자동 주입, 팀 안정성 개선
+- **v4.11.1** (4/7) — HUD 신규 요소: `gitStatus` 워킹 트리 표시, 호스트명 디스플레이. 보안 강화 8건, 버그 수정 33건
+- **v4.11.5** (4/11) — **50개 이상 PR 병합**, autopilot 안정성, ralph 강건성, release 스킬 리라이트
+
+v4.10 ~ v4.11 구간의 핵심 테마는 **HUD 고도화**와 **보안 하드닝**. 이전에는 OMC 상태를 확인하려면 `.omc/state/` 파일을 직접 읽어야 했는데, HUD 가 워킹 트리 상태, git 상태, 활성 모드를 실시간으로 보여주게 됐어요.
+
+<Callout type="warn" title="v4.9.x 사용자 업그레이드 권장">
+v4.9.3 이전 버전에는 MCP 브릿지 서버 시작 시 크래시 버그가 있습니다. `omc update` 로 v4.10.0 이상으로 올리세요.
+</Callout>
+
+## 3. MCP 생태계 — 프로토콜에서 인프라로
+
+### Linux Foundation 이전
+
+2025년 12월 Anthropic 이 MCP 를 **Agentic AI Foundation (AAIF)** 으로 기부했습니다. AAIF 는 Linux Foundation 산하의 directed fund 로, [Anthropic, Block, OpenAI 가 공동 설립](https://www.anthropic.com/news/donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation)하고 Google, Microsoft, AWS, Cloudflare, Bloomberg 이 지원 멤버로 참여해요.
+
+### 성장 지표
+
+커뮤니티 추정치에 따르면, 2026년 3월 기준 MCP SDK 의 월간 다운로드가 수천만 건 규모로 성장했습니다. 2024년 11월 출시 이후 생태계가 급격히 확대됐고, 커뮤니티 + 기업용 MCP 서버 수도 수천 개 이상으로 늘었어요.
+
+### Claude Code 에서의 MCP 변화
+
+- **v2.1.76** (3/14) — **MCP Elicitation** 지원. MCP 서버가 사용자에게 인터랙티브 다이얼로그를 띄울 수 있게 됨
+- **v2.1.85** (3/26) — MCP OAuth 가 RFC 9728 준수로 업데이트
+
+## 다음에 읽을 글
+
+- [숨은 팁 모음](/docs/07-tips-tricks/hidden-gems) — 이번 업데이트로 가능해진 Hook `if` 필드, `--bare` 플래그 등 실전 활용
+- [OMC 카탈로그](/docs/02-slash-commands/omc-catalog) — OMC v4.11.5 기준 슬래시 커맨드 전체 레퍼런스
+
+## 참고 자료
+
+- [Claude Code Changelog](https://code.claude.com/docs/en/changelog) — v2.1.69~v2.1.101 전체 기록
+- [Claude 4.6 Models Overview](https://platform.claude.com/docs/en/about-claude/models/overview) — 모델 스펙, deprecation 일정
+- [OMC GitHub Releases](https://github.com/Yeachan-Heo/oh-my-claudecode/releases) — v4.9.3~v4.11.5
+- [Anthropic — MCP to AAIF](https://www.anthropic.com/news/donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation) — Linux Foundation 이전 발표
+
+---
+
+<Callout type="info">
+**Last verified: 2026-04-12** — Claude Code v2.1.101 / OMC v4.11.5 기준.
+</Callout>
