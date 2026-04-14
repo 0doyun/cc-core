@@ -165,14 +165,14 @@ flowchart TB
 
 [oh-my-claudecode (OMC)](https://github.com/Yeachan-Heo/oh-my-claudecode) 는 **"Claude Code 를 대체하는 도구"** 가 아니라 **"Claude Code 위에 얹은 조직화 레이어"** 입니다. runtime harness 는 그대로 두고 그 위에 workflow harness 를 덧씌워주는 패키지예요. Skills, Subagent 카탈로그, Magic Keyword 라우팅, 상태 관리 — 직접 만들기 귀찮은 workflow harness 구성요소를 플러그인 한 번 설치로 가져다 쓸 수 있게 해줍니다. 자세한 카탈로그는 [OMC 슬래시 커맨드 카탈로그](/docs/02-slash-commands/omc-catalog) 참고.
 
-## 5. 프롬프트에서 컨텍스트로, 컨텍스트에서 하네스로 — 엄밀함의 이동
+## 5. 프롬프트에서 컨텍스트로, 컨텍스트에서 하네스로
 
 "그럼 프롬프트 엔지니어링이나 컨텍스트 엔지니어링이랑 뭐가 달라요?" Jonas Kim 의 [에이전틱 패턴 진화 분석](https://bits-bytes-nn.github.io/insights/agentic-ai/2026/04/05/evolution-of-ai-agentic-patterns.html) 이 가장 명료한 답을 줍니다. 핵심 명제는 Chad Fowler 의 "Relocating Rigor" 개념을 빌려옵니다:
 
 > "엔지니어링의 엄밀함은 사라지지 않는다 — 이동할 뿐이다."
 > — Jonas Kim, 2026-04-05 (Chad Fowler 의 "Relocating Rigor" 개념을 인용)
 
-| 시대 | 엄밀함이 사는 곳 | 한계 / 다음 시대로 넘어간 이유 |
+| 시대 | 초점 | 한계 |
 |---|---|---|
 | **Prompt engineering** (2022-2024) | 단일 프롬프트 표현 | 같은 프롬프트가 다음 턴에 무너짐 |
 | **Context engineering** (2025) | 컨텍스트 윈도우 큐레이션 | 한 세션 안에서만 유효, 시스템 전체엔 답 못 줌 |
