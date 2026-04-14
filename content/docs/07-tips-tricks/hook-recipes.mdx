@@ -1,0 +1,230 @@
+---
+title: 자주 쓰는 Hook 레시피
+description: Claude Code Hooks 의 실전 설정 예시 모음. PreToolUse 로 위험 명령 차단, PostToolUse 로 자동 포맷, Stop 으로 테스트 강제, SessionStart 로 컨텍스트 주입까지.
+---
+
+<Callout type="info">
+[숨은 팁](/docs/07-tips-tricks/hidden-gems) 에서 Hook 의 핵심 개념(`if` 필드, `type: agent`, `stop_hook_active`)을 다뤘다면, 여기서는 **복사해서 바로 쓸 수 있는 레시피**를 모았습니다. 모든 설정은 `~/.claude/settings.json` 또는 `.claude/settings.json` 에 넣으면 됩니다.
+</Callout>
+
+## 1. PreToolUse — 위험 명령 차단
+
+### main 브랜치 push 차단
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git push *)",
+            "command": "BRANCH=$(git branch --show-current) && [ \"$BRANCH\" = 'main' ] && echo 'main push blocked' >&2 && exit 2 || exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+`exit 2` 는 stderr 메시지를 Claude 에게 피드백합니다. Claude 는 이 메시지를 읽고 다른 접근법을 시도해요.
+
+### 파괴적 명령어 차단
+
+```bash
+#!/bin/bash
+# .claude/hooks/block-dangerous.sh
+COMMAND=$(jq -r '.tool_input.command')
+if echo "$COMMAND" | grep -qE 'rm -rf|drop table|truncate'; then
+  echo "Destructive command blocked by policy" >&2
+  exit 2
+fi
+exit 0
+```
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(rm *)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-dangerous.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Anthropic 공식 레포의 [bash_command_validator_example.py](https://github.com/anthropics/claude-code/blob/main/examples/hooks/bash_command_validator_example.py) 는 `exit 0` + JSON stdout(`permissionDecision: "deny"`) 방식을 사용합니다. 이 레시피는 더 간결한 `exit 2` + stderr 방식이에요.
+
+<Callout type="warn" title="if 필드 vs matcher">
+`matcher` 는 도구 이름(또는 정규식)으로 훅 그룹을 필터링합니다 (예: `"Bash"`). `if` 는 권한 규칙 문법으로 인자까지 조건을 걸 수 있는 선택 필드입니다 (예: `"Bash(git push *)"`). `if` 가 없으면 모든 Bash 명령에 대해 훅 프로세스가 spawn 되니까, 성능을 위해 `if` 를 쓰세요.
+</Callout>
+
+## 2. PostToolUse — 자동 포맷팅
+
+### Prettier 자동 실행
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx prettier --write \"$(jq -r '.tool_input.file_path')\" 2>/dev/null"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Claude 가 파일을 수정할 때마다 Prettier 가 자동으로 돌아갑니다. `2>/dev/null` 로 Prettier 가 지원하지 않는 파일 타입의 에러를 숨겨요.
+
+### Bash 명령어 로깅
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command' >> ~/.claude/command-log.txt"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+PostToolUse 는 도구 실행 **이후**에 발동합니다. 실행을 취소하거나 Claude 에게 피드백을 전달할 수는 없어요. `exit 2` 의 stderr 는 사용자에게만 표시됩니다.
+
+## 3. Stop — 멈추기 전 테스트 강제
+
+```bash
+#!/bin/bash
+# .claude/hooks/test-before-stop.sh
+INPUT=$(cat)
+if [ "$(echo "$INPUT" | jq -r '.stop_hook_active')" = "true" ]; then
+  exit 0  # 이미 한 번 실행됨 — 무한 루프 방지
+fi
+
+npm test --silent 2>&1
+if [ $? -ne 0 ]; then
+  echo "Tests failed. Fix before stopping." >&2
+  exit 2
+fi
+exit 0
+```
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/test-before-stop.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+`stop_hook_active` 가드를 빼면 Stop hook 이 실패 → Claude 재작업 → 다시 Stop → 다시 실패 → 무한 루프에 빠집니다. [Hooks 가이드](https://code.claude.com/docs/en/hooks-guide)에서 이 패턴을 공식적으로 안내하고 있어요.
+
+## 4. SessionStart — 컨텍스트 재주입
+
+### compact 후 핵심 컨텍스트 복원
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Reminder: use pnpm, not npm. Run pnpm test before committing. Current sprint: auth refactor.'"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+`matcher: "compact"` 이면 `/compact` 이후에만 발동합니다. stdout 으로 출력한 텍스트가 Claude 컨텍스트에 주입돼요. `/compact` 때 날아간 핵심 맥락을 복원하는 용도입니다.
+
+### 세션 시작 시 환경 정보 주입
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"Node: $(node -v) | Git branch: $(git branch --show-current) | Uncommitted: $(git status --short | wc -l | tr -d ' ') files\""
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+<Callout type="warn" title="쉘 프로필 echo 함정">
+`~/.zshrc` 에 조건 없는 `echo` 가 있으면 Hook JSON 파싱이 깨집니다. Claude Code 가 Hook 프로세스를 spawn 할 때 쉘 프로필을 source 하거든요. `[[ $- == *i* ]]` 로 인터랙티브 쉘에서만 echo 하게 감싸세요.
+</Callout>
+
+## 5. 훅 결정 우선순위
+
+여러 PreToolUse 훅이 같은 도구에 매칭되면, 모든 핸들러가 **병렬로** 실행됩니다. 충돌하는 결정이 나오면 [가장 제한적인 것이 이깁니다](https://code.claude.com/docs/en/hooks):
+
+```
+deny > defer > ask > allow
+```
+
+즉, 하나라도 `deny` 를 반환하면 다른 훅이 `allow` 를 반���해도 차단됩니다. `defer` 는 비인터랙티브 모드(`-p` 플래그)에서만 유효해요.
+
+## 다음에 읽을 글
+
+- [숨은 팁 모음](/docs/07-tips-tricks/hidden-gems) — Hook 외의 환경변수, CLI 플래그, CLAUDE.md 팁
+- [실전 CLAUDE.md 패턴](/docs/07-tips-tricks/claude-md-patterns) — CLAUDE.md 로 소프트 규칙, Hook 으로 하드 규칙
+
+## 참고 자료
+
+- [Claude Code — Hooks Reference](https://code.claude.com/docs/en/hooks) — 전체 이벤트 타입, 스키마, 결정 우선순위
+- [Claude Code — Hooks Guide](https://code.claude.com/docs/en/hooks-guide) — 실전 설정 예시, 트러블슈팅
+- [Claude Code — Changelog](https://code.claude.com/docs/en/changelog) — Hook 이벤트 추가 이력 (v2.1.71~)
+- [bash_command_validator_example.py](https://github.com/anthropics/claude-code/blob/main/examples/hooks/bash_command_validator_example.py) — 공식 Python 레퍼런스
+
+---
+
+<Callout type="info">
+**Last verified: 2026-04-13** — Claude Code v2.1.101 기준. `defer` 는 v2.1.89+ 필요.
+</Callout>
